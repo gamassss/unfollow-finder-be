@@ -2,13 +2,30 @@ from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 import json
 import os
+from apscheduler.schedulers.background import BackgroundScheduler
+from datetime import datetime, timedelta
 
 app = FastAPI()
 
 UPLOAD_FOLDER = "uploads"
+FILE_LIFETIME = timedelta(days=1)
 
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
+
+def cleanup_old_files():
+    now = datetime.now()
+    for filename in os.listdir(UPLOAD_FOLDER):
+        file_path = os.path.join(UPLOAD_FOLDER, filename)
+        if os.path.isfile(file_path):
+            file_mod_time = datetime.fromtimestamp(os.path.getmtime(file_path))
+            if now - file_mod_time > FILE_LIFETIME:
+                os.remove(file_path)
+                print(f"Deleted old file: {filename}")
+
+scheduler = BackgroundScheduler()
+scheduler.add_job(cleanup_old_files, "interval", hours=3)
+scheduler.start()
 
 @app.post("/upload")
 async def upload_file(
